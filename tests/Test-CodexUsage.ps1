@@ -29,6 +29,8 @@ foreach ($controlName in @('WeeklyBar', 'WeeklyValue', 'ResetValue', 'ContextBar
 Assert-Equal 'True' $meterXaml.Window.Topmost 'Meter stays topmost'
 Assert-Equal 'False' $meterXaml.Window.ShowInTaskbar 'Meter is hidden from the taskbar'
 Assert-Equal 'None' $meterXaml.Window.WindowStyle 'Meter has no window chrome'
+$zoomLabel = -join @([char]0x7F29, [char]0x653E)
+Assert-Equal $true ($null -ne $meterXaml.SelectSingleNode("//*[@Text='$zoomLabel']")) 'Zoom percentage has an explicit label'
 
 $meterScriptPath = Join-Path $PSScriptRoot '..\src\CodexMeter.ps1'
 Assert-Equal $true (Test-Path -LiteralPath $meterScriptPath -PathType Leaf) 'Meter controller exists'
@@ -37,6 +39,7 @@ $null = [Management.Automation.Language.Parser]::ParseFile($meterScriptPath, [re
 Assert-Equal 0 $parseErrors.Count 'Meter controller has valid PowerShell syntax'
 $meterScriptText = Get-Content -LiteralPath $meterScriptPath -Raw -Encoding UTF8
 Assert-Equal $true ($meterScriptText -match '\[Windows\.SystemParameters\]::WorkArea') 'Meter places itself with WPF device-independent coordinates'
+Assert-Equal $false ([regex]::IsMatch($meterScriptText, '[^\u0000-\u007F]')) 'PowerShell 5.1 controller avoids non-ASCII string literals'
 
 $installScriptPath = Join-Path $PSScriptRoot '..\scripts\install.ps1'
 $uninstallScriptPath = Join-Path $PSScriptRoot '..\scripts\uninstall.ps1'

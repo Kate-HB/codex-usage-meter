@@ -35,8 +35,12 @@
                 <TextBlock Grid.Column="1" Text="CODEX / LIVE METER" FontFamily="Bahnschrift"
                            FontSize="12" FontWeight="SemiBold" Foreground="#FFE5EAED"
                            VerticalAlignment="Center" />
-                <TextBlock x:Name="ZoomValue" Grid.Column="2" Text="100%" FontFamily="Consolas"
-                           FontSize="10" Foreground="#FF7E8A91" VerticalAlignment="Center" />
+                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBlock Text="缩放" FontFamily="Microsoft YaHei UI" FontSize="9"
+                               Foreground="#FF59656B" Margin="0,0,5,0" />
+                    <TextBlock x:Name="ZoomValue" Text="100%" FontFamily="Consolas"
+                               FontSize="10" Foreground="#FF7E8A91" />
+                </StackPanel>
             </Grid>
 
             <Grid Grid.Row="1" Margin="0,3,0,0">

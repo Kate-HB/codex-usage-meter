@@ -40,6 +40,10 @@ $weeklyHealthyBrush = [Windows.Media.BrushConverter]::new().ConvertFromString('#
 $weeklyWarningBrush = [Windows.Media.BrushConverter]::new().ConvertFromString('#FFF0B75B')
 $weeklyCriticalBrush = [Windows.Media.BrushConverter]::new().ConvertFromString('#FFFF6B6B')
 $contextBrush = [Windows.Media.BrushConverter]::new().ConvertFromString('#FF55A9F4')
+$textWaitingForData = -join @([char]0x7B49, [char]0x5F85, ' Codex ', [char]0x6570, [char]0x636E)
+$textReset = -join @([char]0x91CD, [char]0x7F6E)
+$textUpdated = -join @([char]0x66F4, [char]0x65B0)
+$textWaitingForUpdate = -join @([char]0x7B49, [char]0x5F85, [char]0x66F4, [char]0x65B0)
 $settings = Read-CodexSettings
 $cursor = New-CodexLogCursor
 $hasSnapshot = $false
@@ -182,7 +186,7 @@ function Invoke-CodexMeterPoll {
         $logPath = Get-LatestCodexLog
         if ([string]::IsNullOrWhiteSpace($logPath)) {
             if (-not $hasSnapshot) {
-                $controls.FreshnessValue.Text = '等待 Codex 数据'
+                $controls.FreshnessValue.Text = $textWaitingForData
             }
             return
         }
@@ -201,14 +205,14 @@ function Invoke-CodexMeterPoll {
         if ($null -ne $snapshot.ResetsAt) {
             $epoch = [datetime]::SpecifyKind([datetime]'1970-01-01T00:00:00', [DateTimeKind]::Utc)
             $resetLocal = $epoch.AddSeconds([double]$snapshot.ResetsAt).ToLocalTime()
-            $controls.ResetValue.Text = '重置 {0:MM-dd HH:mm}' -f $resetLocal
+            $controls.ResetValue.Text = $textReset + (' {0:MM-dd HH:mm}' -f $resetLocal)
         }
 
         $script:hasSnapshot = $true
-        $controls.FreshnessValue.Text = '更新 {0:HH:mm:ss}' -f (Get-Date)
+        $controls.FreshnessValue.Text = $textUpdated + (' {0:HH:mm:ss}' -f (Get-Date))
     }
     catch {
-        $controls.FreshnessValue.Text = '等待更新'
+        $controls.FreshnessValue.Text = $textWaitingForUpdate
     }
 }
 
