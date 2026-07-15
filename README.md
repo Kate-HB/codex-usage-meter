@@ -38,7 +38,9 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\install.ps1
 
 安装脚本会在 Windows 的“启动”文件夹创建 `Codex Meter.lnk`，并在监视器尚未运行时立即静默启动。以后登录 Windows 时会自动启动。
 
-仓库目录不能在安装后移动或删除，因为快捷方式保存的是 `src\CodexMeter.ps1` 的绝对路径。若移动了目录，请在新位置重新运行安装脚本。
+开机启动快捷方式保存的是 `src\CodexMeter.ps1` 的绝对路径。如需移动仓库，请先在旧目录运行卸载脚本，确认旧监视器已停止，再移动仓库并在新目录运行安装脚本。
+
+若仓库已经移动：旧目录仍可使用时，先从旧目录运行卸载脚本；旧目录已不存在时，在任务管理器中结束命令行指向旧路径 `CodexMeter.ps1` 的 `powershell.exe` 进程。停止旧实例后，再从新目录安装。不要直接在新目录安装，否则旧路径的实例可能继续运行。
 
 ## 使用方法
 
