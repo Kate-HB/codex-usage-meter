@@ -103,13 +103,16 @@ Codex Meter 只读以下本机会话目录：
 
 ## 更新
 
-进入已克隆的仓库，拉取最新代码，然后重新运行安装脚本，使开机启动快捷方式继续指向当前脚本并启动最新版本：
+进入已克隆的仓库，拉取最新代码，先卸载以停止旧进程并移除旧快捷方式，再重新安装：
 
 ```powershell
 cd codex-usage-meter
 git pull
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\uninstall.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\install.ps1
 ```
+
+卸载脚本会保留 `%LOCALAPPDATA%\CodexMeter\settings.json`，更新后仍使用原来的窗口位置和缩放设置。
 
 ## 卸载
 
@@ -133,11 +136,15 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\uninstall.ps1
 
 ### 更新代码后行为仍未变化
 
-在仓库目录执行 `git pull` 后，再运行一次安装脚本：
+安装脚本检测到监视器已运行时不会重启旧进程。拉取代码后，请先运行卸载脚本停止旧进程，再运行安装脚本：
 
 ```powershell
+git pull
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\uninstall.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\install.ps1
 ```
+
+此操作保留 `%LOCALAPPDATA%\CodexMeter\settings.json`。
 
 ### 窗口位置或缩放异常
 
