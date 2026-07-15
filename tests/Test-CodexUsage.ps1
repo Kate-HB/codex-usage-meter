@@ -30,12 +30,17 @@ $desktopProcess = [pscustomobject]@{
     ProcessName = 'ChatGPT'
     Path = 'C:\Program Files\WindowsApps\OpenAI.Codex_1.0.0.0_x64__8wekyb3d8bbwe\ChatGPT.exe'
 }
+$desktopCodexProcess = [pscustomobject]@{
+    ProcessName = 'codex'
+    Path = 'C:\Program Files\WindowsApps\OpenAI.Codex_1.0.0.0_x64__8wekyb3d8bbwe\codex.exe'
+}
 $vscodeProcess = [pscustomobject]@{
     ProcessName = 'codex'
     Path = 'C:\Users\tester\.vscode\extensions\openai.chatgpt-1.0.0\bin\windows-x86_64\codex.exe'
 }
 
 Assert-Equal $true (Test-IsCodexDesktopProcess -Process $desktopProcess) 'Codex Desktop is recognized'
+Assert-Equal $true (Test-IsCodexDesktopProcess -Process $desktopCodexProcess) 'Codex Desktop helper is recognized'
 Assert-Equal $false (Test-IsCodexDesktopProcess -Process $vscodeProcess) 'VS Code codex process is rejected'
 
 Write-Output 'PASS Test-CodexUsage'
