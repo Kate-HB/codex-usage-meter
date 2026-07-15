@@ -1,6 +1,7 @@
 $ErrorActionPreference = 'Stop'
 
 Import-Module (Join-Path $PSScriptRoot '..\src\CodexUsage.psm1') -Force
+Import-Module (Join-Path $PSScriptRoot '..\src\CodexSettings.psm1') -Force
 
 function Assert-Equal {
     param(
@@ -67,5 +68,93 @@ $vscodeProcess = [pscustomobject]@{
 Assert-Equal $true (Test-IsCodexDesktopProcess -Process $desktopProcess) 'Codex Desktop is recognized'
 Assert-Equal $true (Test-IsCodexDesktopProcess -Process $desktopCodexProcess) 'Codex Desktop helper is recognized'
 Assert-Equal $false (Test-IsCodexDesktopProcess -Process $vscodeProcess) 'VS Code codex process is rejected'
+
+function New-TokenCountLine {
+    param([double]$UsedPercent, [string]$Timestamp = '2026-07-15T08:00:00Z')
+
+    '{"timestamp":"' + $Timestamp + '","payload":{"type":"token_count","rate_limits":{"primary":{"used_percent":' +
+        ([string]::Format([Globalization.CultureInfo]::InvariantCulture, '{0}', $UsedPercent)) + '}}}}'
+}
+
+$tempRoot = Join-Path ([IO.Path]::GetTempPath()) ('CodexMeterTests-' + [guid]::NewGuid())
+$originalLocalAppData = $env:LOCALAPPDATA
+$originalUserProfile = $env:USERPROFILE
+New-Item -ItemType Directory -Path $tempRoot | Out-Null
+
+try {
+    $logPath = Join-Path $tempRoot 'session.jsonl'
+    Copy-Item (Join-Path $PSScriptRoot 'fixtures\token-count.jsonl') $logPath
+    $cursor = New-CodexLogCursor
+
+    $firstUpdate = Read-CodexLogUpdate -Path $logPath -Cursor $cursor
+    Assert-Equal 73 ([math]::Round($firstUpdate.WeeklyRemaining)) 'Initial cursor read finds latest fixture event'
+
+    [IO.File]::AppendAllText($logPath, (New-TokenCountLine 40) + [Environment]::NewLine, (New-Object Text.UTF8Encoding($false)))
+    $secondUpdate = Read-CodexLogUpdate -Path $logPath -Cursor $cursor
+    Assert-Equal 60 ([math]::Round($secondUpdate.WeeklyRemaining)) 'Incremental cursor read finds appended event'
+    Assert-Equal $true ($null -eq (Read-CodexLogUpdate -Path $logPath -Cursor $cursor)) 'Unchanged log returns null'
+
+    $partialLine = New-TokenCountLine 55 '2026-07-15T08:01:00Z'
+    $splitAt = [math]::Floor($partialLine.Length / 2)
+    [IO.File]::AppendAllText($logPath, $partialLine.Substring(0, $splitAt), (New-Object Text.UTF8Encoding($false)))
+    Assert-Equal $true ($null -eq (Read-CodexLogUpdate -Path $logPath -Cursor $cursor)) 'Unterminated JSON is retained'
+    [IO.File]::AppendAllText($logPath, $partialLine.Substring($splitAt) + "`n", (New-Object Text.UTF8Encoding($false)))
+    $completedUpdate = Read-CodexLogUpdate -Path $logPath -Cursor $cursor
+    Assert-Equal 45 ([math]::Round($completedUpdate.WeeklyRemaining)) 'Retained JSON is parsed after newline arrives'
+
+    [IO.File]::WriteAllText($logPath, (New-TokenCountLine 80 '2026-07-15T08:02:00Z') + "`n", (New-Object Text.UTF8Encoding($false)))
+    $truncatedUpdate = Read-CodexLogUpdate -Path $logPath -Cursor $cursor
+    Assert-Equal 20 ([math]::Round($truncatedUpdate.WeeklyRemaining)) 'Truncated log restarts cursor'
+
+    $rotatedPath = Join-Path $tempRoot 'rotated.jsonl'
+    [IO.File]::WriteAllText($rotatedPath, (New-TokenCountLine 10 '2026-07-15T08:03:00Z') + "`n", (New-Object Text.UTF8Encoding($false)))
+    $rotatedUpdate = Read-CodexLogUpdate -Path $rotatedPath -Cursor $cursor
+    Assert-Equal 90 ([math]::Round($rotatedUpdate.WeeklyRemaining)) 'New log path restarts cursor'
+
+    $largeLogPath = Join-Path $tempRoot 'large.jsonl'
+    $largeContent = ('x' * 2097200) + "`n" + (New-TokenCountLine 25 '2026-07-15T08:04:00Z') + "`n"
+    [IO.File]::WriteAllText($largeLogPath, $largeContent, (New-Object Text.UTF8Encoding($false)))
+    $largeUpdate = Read-CodexLogUpdate -Path $largeLogPath -Cursor (New-CodexLogCursor)
+    Assert-Equal 75 ([math]::Round($largeUpdate.WeeklyRemaining)) 'Initial capped read discards its leading partial line'
+
+    $env:USERPROFILE = Join-Path $tempRoot 'profile'
+    $sessions = Join-Path $env:USERPROFILE '.codex\sessions\2026\07'
+    New-Item -ItemType Directory -Path $sessions -Force | Out-Null
+    $olderLog = Join-Path $sessions 'older.jsonl'
+    $newerLog = Join-Path $sessions 'newer.jsonl'
+    [IO.File]::WriteAllText($olderLog, "{}`n")
+    [IO.File]::WriteAllText($newerLog, "{}`n")
+    (Get-Item $olderLog).LastWriteTime = [datetime]'2026-07-15T08:00:00'
+    (Get-Item $newerLog).LastWriteTime = [datetime]'2026-07-15T08:01:00'
+    Assert-Equal $newerLog (Get-LatestCodexLog) 'Newest recursive session log is selected'
+
+    Assert-Equal 0.6 (Limit-CodexZoom 0.2) 'Zoom lower bound is enforced'
+    Assert-Equal 1.2 (Limit-CodexZoom 2) 'Zoom upper bound is enforced'
+    Assert-Equal 1.01 (Limit-CodexZoom 1.006) 'Zoom is rounded to two decimals'
+
+    $env:LOCALAPPDATA = Join-Path $tempRoot 'local'
+    $defaults = Read-CodexSettings
+    Assert-Equal $true ($null -eq $defaults.Left) 'Default left is null'
+    Assert-Equal $true ($null -eq $defaults.Top) 'Default top is null'
+    Assert-Equal 1.0 $defaults.Zoom 'Default zoom is one'
+
+    $savedSettings = [pscustomobject]@{ Left = 12; Top = 34; Zoom = 1.234 }
+    Save-CodexSettings -Settings $savedSettings
+    $loadedSettings = Read-CodexSettings
+    Assert-Equal 12 $loadedSettings.Left 'Saved left is restored'
+    Assert-Equal 34 $loadedSettings.Top 'Saved top is restored'
+    Assert-Equal 1.2 $loadedSettings.Zoom 'Saved zoom is normalized'
+
+    [IO.File]::WriteAllText((Get-CodexSettingsPath), '{broken json', (New-Object Text.UTF8Encoding($false)))
+    $damagedSettings = Read-CodexSettings
+    Assert-Equal $true ($null -eq $damagedSettings.Left) 'Damaged settings restore default left'
+    Assert-Equal $true ($null -eq $damagedSettings.Top) 'Damaged settings restore default top'
+    Assert-Equal 1.0 $damagedSettings.Zoom 'Damaged settings restore default zoom'
+}
+finally {
+    $env:LOCALAPPDATA = $originalLocalAppData
+    $env:USERPROFILE = $originalUserProfile
+    Remove-Item -LiteralPath $tempRoot -Recurse -Force -ErrorAction SilentlyContinue
+}
 
 Write-Output 'PASS Test-CodexUsage'
