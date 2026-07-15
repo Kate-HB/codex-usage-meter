@@ -79,8 +79,15 @@ function Test-CodexMeterRectangleOnScreen {
 
     $right = $Left + $window.Width
     $bottom = $Top + $window.Height
+    $dpi = [Windows.Media.VisualTreeHelper]::GetDpi($window)
     foreach ($screen in [Windows.Forms.Screen]::AllScreens) {
-        $area = $screen.WorkingArea
+        $physicalArea = $screen.WorkingArea
+        $area = New-Object Windows.Rect -ArgumentList @(
+            ($physicalArea.Left / $dpi.DpiScaleX),
+            ($physicalArea.Top / $dpi.DpiScaleY),
+            ($physicalArea.Width / $dpi.DpiScaleX),
+            ($physicalArea.Height / $dpi.DpiScaleY)
+        )
         if ($right -gt $area.Left -and $Left -lt $area.Right -and
             $bottom -gt $area.Top -and $Top -lt $area.Bottom) {
             return $true
@@ -108,7 +115,7 @@ function Restore-CodexMeterPosition {
         return
     }
 
-    $primaryArea = [Windows.Forms.Screen]::PrimaryScreen.WorkingArea
+    $primaryArea = [Windows.SystemParameters]::WorkArea
     $window.Left = $primaryArea.Right - $window.Width - 24
     $window.Top = $primaryArea.Top + 24
 }

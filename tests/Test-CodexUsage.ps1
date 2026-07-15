@@ -35,6 +35,8 @@ Assert-Equal $true (Test-Path -LiteralPath $meterScriptPath -PathType Leaf) 'Met
 $parseErrors = $null
 $null = [Management.Automation.Language.Parser]::ParseFile($meterScriptPath, [ref]$null, [ref]$parseErrors)
 Assert-Equal 0 $parseErrors.Count 'Meter controller has valid PowerShell syntax'
+$meterScriptText = Get-Content -LiteralPath $meterScriptPath -Raw -Encoding UTF8
+Assert-Equal $true ($meterScriptText -match '\[Windows\.SystemParameters\]::WorkArea') 'Meter places itself with WPF device-independent coordinates'
 
 $installScriptPath = Join-Path $PSScriptRoot '..\scripts\install.ps1'
 $uninstallScriptPath = Join-Path $PSScriptRoot '..\scripts\uninstall.ps1'
