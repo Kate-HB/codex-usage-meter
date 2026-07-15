@@ -24,11 +24,20 @@ Codex Meter 是面向 Windows Codex Desktop 用户的轻量悬浮监视器。它
 - Windows PowerShell 5.1（Windows 自带的 `powershell.exe`）。
 - Git，用于克隆和更新项目。
 
+安装前请自行安装 Git for Windows 和 Codex Desktop。然后打开 Windows PowerShell，运行以下命令确认 Git 可用，并确认 PowerShell 版本为 5.1：
+
+```powershell
+git --version
+$PSVersionTable.PSVersion
+```
+
+第一条命令应输出 Git 版本；若提示找不到 `git`，请先完成 Git for Windows 安装。第二条命令的 `Major` 应为 `5`、`Minor` 应为 `1`。
+
 本项目不承诺支持 macOS、Linux、PowerShell 7 或其他 Codex 客户端。
 
 ## 快速安装
 
-打开 PowerShell，依次执行：
+先在 PowerShell 中进入你希望存放项目的父目录，例如“文档”目录。然后依次执行：
 
 ```powershell
 git clone https://github.com/Kate-HB/codex-usage-meter.git
@@ -36,11 +45,13 @@ cd codex-usage-meter
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\install.ps1
 ```
 
+`git clone` 会在当前父目录创建 `codex-usage-meter` 文件夹；`cd codex-usage-meter` 会进入这个新建的仓库根目录，后续相对路径命令都从这里运行。
+
 安装脚本会在 Windows 的“启动”文件夹创建 `Codex Meter.lnk`，并在监视器尚未运行时立即静默启动。以后登录 Windows 时会自动启动。
 
 开机启动快捷方式保存的是 `src\CodexMeter.ps1` 的绝对路径。如需移动仓库，请先在旧目录运行卸载脚本，确认旧监视器已停止，再移动仓库并在新目录运行安装脚本。
 
-若仓库已经移动：旧目录仍可使用时，先从旧目录运行卸载脚本；旧目录已不存在时，在任务管理器中结束命令行指向旧路径 `CodexMeter.ps1` 的 `powershell.exe` 进程。停止旧实例后，再从新目录安装。不要直接在新目录安装，否则旧路径的实例可能继续运行。
+若仓库已经移动：旧目录仍可使用时，先从旧目录运行卸载脚本；旧目录已不存在时，最简单的做法是重启 Windows，以结束旧路径启动的监视器。确认旧实例已停止后，再进入新目录安装。不要直接在新目录安装，否则旧路径的实例可能继续运行。
 
 ## 使用方法
 
@@ -95,7 +106,7 @@ Codex Meter 只读以下本机会话目录：
 %USERPROFILE%\.codex\sessions
 ```
 
-程序不联网、不上传日志，也不修改 Codex 会话文件。它只解析本地 `.jsonl` 日志中的 `token_count` 数据。
+监视器运行时不联网、不上传日志，也不修改 Codex 会话文件。它只解析本地 `.jsonl` 日志中的 `token_count` 数据。安装和更新使用的 `git clone`、`git pull` 命令需要连接网络，但不是监视器的数据读取行为。
 
 窗口位置和缩放设置保存在：
 
@@ -105,10 +116,10 @@ Codex Meter 只读以下本机会话目录：
 
 ## 更新
 
-进入已克隆的仓库，拉取最新代码，先卸载以停止旧进程并移除旧快捷方式，再重新安装：
+先进入你的仓库根目录（将示例路径替换为实际路径），拉取最新代码，卸载旧进程和快捷方式，再重新安装：
 
 ```powershell
-cd codex-usage-meter
+cd 'C:\你的仓库路径\codex-usage-meter'
 git pull
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\uninstall.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\install.ps1
@@ -126,11 +137,48 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\uninstall.ps1
 
 卸载脚本会删除开机启动快捷方式，并停止由本项目 `CodexMeter.ps1` 启动的 PowerShell 进程。卸载会保留 `%LOCALAPPDATA%\CodexMeter\settings.json`，以后重新安装仍可使用原来的位置和缩放设置。
 
+如需彻底删除窗口位置和缩放设置，可在卸载后执行以下可选命令：
+
+```powershell
+Remove-Item -LiteralPath "$env:LOCALAPPDATA\CodexMeter\settings.json" -Force -ErrorAction SilentlyContinue
+```
+
 ## 故障排查
 
 ### 看不到悬浮窗
 
-先确认 Codex Desktop 正在运行。监视器检测不到 Codex Desktop 时会主动隐藏；仅启动脚本而不启动 Codex Desktop，不会显示窗口。
+按以下顺序检查：
+
+1. 确认 Codex Desktop 正在运行。监视器检测不到 Codex Desktop 时会主动隐藏。
+2. 检查开机启动快捷方式是否存在：
+
+   ```powershell
+   Get-ChildItem -LiteralPath ([Environment]::GetFolderPath('Startup')) -Filter 'Codex Meter.lnk'
+   ```
+
+   没有输出表示快捷方式不存在。请进入仓库根目录，重新运行安装脚本：
+
+   ```powershell
+   cd 'C:\你的仓库路径\codex-usage-meter'
+   powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\install.ps1
+   ```
+
+3. 只读检查监视器进程。出现 `CodexMeter.ps1` 对应的进程表示脚本已启动；没有输出表示未运行：
+
+   ```powershell
+   Get-CimInstance Win32_Process -Filter "Name = 'powershell.exe'" |
+       Where-Object { $_.CommandLine -like '*CodexMeter.ps1*' } |
+       Select-Object ProcessId, CommandLine
+   ```
+
+4. 若没有监视器进程，且重新安装仍无效，请先进入仓库根目录，再以前台方式运行。此命令故意不使用 `-WindowStyle Hidden`，PowerShell 窗口会显示启动错误：
+
+   ```powershell
+   cd 'C:\你的仓库路径\codex-usage-meter'
+   powershell -NoProfile -ExecutionPolicy Bypass -STA -File .\src\CodexMeter.ps1
+   ```
+
+若进程存在但窗口仍不可见，请按[窗口位置或缩放异常](#窗口位置或缩放异常)重置保存的位置。
 
 ### 切换对话后上下文没有变化
 
@@ -138,9 +186,10 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\uninstall.ps1
 
 ### 更新代码后行为仍未变化
 
-安装脚本检测到监视器已运行时不会重启旧进程。拉取代码后，请先运行卸载脚本停止旧进程，再运行安装脚本：
+安装脚本检测到监视器已运行时不会重启旧进程。先进入仓库根目录，再拉取代码、卸载旧进程并重新安装：
 
 ```powershell
+cd 'C:\你的仓库路径\codex-usage-meter'
 git pull
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\uninstall.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\install.ps1
@@ -150,9 +199,10 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\install.ps1
 
 ### 窗口位置或缩放异常
 
-先运行卸载脚本停止监视器，再删除设置文件并重新安装：
+先进入仓库根目录，运行卸载脚本停止监视器，再删除设置文件并重新安装：
 
 ```powershell
+cd 'C:\你的仓库路径\codex-usage-meter'
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\uninstall.ps1
 Remove-Item -LiteralPath "$env:LOCALAPPDATA\CodexMeter\settings.json" -Force -ErrorAction SilentlyContinue
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\install.ps1
@@ -162,17 +212,19 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\install.ps1
 
 ### PowerShell 提示禁止运行脚本
 
-使用文档中的完整命令，通过当前进程的 `ExecutionPolicy Bypass` 运行脚本，无需修改系统级执行策略：
+先进入仓库根目录，再通过当前进程的 `ExecutionPolicy Bypass` 运行脚本，无需修改系统级执行策略：
 
 ```powershell
+cd 'C:\你的仓库路径\codex-usage-meter'
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\install.ps1
 ```
 
 ### 中文显示乱码
 
-README 和 XAML 使用 UTF-8。Windows PowerShell 5.1 的默认文本编码行为与新版 PowerShell 不同；读取文件时请明确指定 UTF-8：
+README 和 XAML 使用 UTF-8。Windows PowerShell 5.1 的默认文本编码行为与新版 PowerShell 不同；先进入仓库根目录，读取文件时明确指定 UTF-8：
 
 ```powershell
+cd 'C:\你的仓库路径\codex-usage-meter'
 Get-Content -LiteralPath .\README.md -Raw -Encoding UTF8
 ```
 
