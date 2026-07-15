@@ -36,6 +36,29 @@ $parseErrors = $null
 $null = [Management.Automation.Language.Parser]::ParseFile($meterScriptPath, [ref]$null, [ref]$parseErrors)
 Assert-Equal 0 $parseErrors.Count 'Meter controller has valid PowerShell syntax'
 
+$installScriptPath = Join-Path $PSScriptRoot '..\scripts\install.ps1'
+$uninstallScriptPath = Join-Path $PSScriptRoot '..\scripts\uninstall.ps1'
+$readmePath = Join-Path $PSScriptRoot '..\README.md'
+Assert-Equal $true (Test-Path -LiteralPath $installScriptPath -PathType Leaf) 'Installer exists'
+Assert-Equal $true (Test-Path -LiteralPath $uninstallScriptPath -PathType Leaf) 'Uninstaller exists'
+Assert-Equal $true (Test-Path -LiteralPath $readmePath -PathType Leaf) 'README exists'
+
+$installText = Get-Content -LiteralPath $installScriptPath -Raw -Encoding UTF8
+$uninstallText = Get-Content -LiteralPath $uninstallScriptPath -Raw -Encoding UTF8
+Assert-Equal $true ($installText -match 'Startup') 'Installer targets Startup'
+Assert-Equal $true ($installText -match 'CreateShortcut') 'Installer creates a shortcut'
+Assert-Equal $true ($installText -match '-WindowStyle Hidden') 'Installer starts hidden'
+Assert-Equal $true ($installText -match '-STA') 'Installer uses STA'
+Assert-Equal $true ($uninstallText -match 'Codex Meter\.lnk') 'Uninstaller removes the meter shortcut'
+Assert-Equal $true ($uninstallText -match 'CommandLine') 'Uninstaller checks process command lines'
+Assert-Equal $true ($uninstallText -match 'CodexMeter\.ps1') 'Uninstaller identifies the exact meter script'
+
+foreach ($scriptPath in @($installScriptPath, $uninstallScriptPath)) {
+    $parseErrors = $null
+    $null = [Management.Automation.Language.Parser]::ParseFile($scriptPath, [ref]$null, [ref]$parseErrors)
+    Assert-Equal 0 $parseErrors.Count "$(Split-Path -Leaf $scriptPath) has valid PowerShell syntax"
+}
+
 $events = @(
     Get-Content (Join-Path $PSScriptRoot 'fixtures\token-count.jsonl') |
         ForEach-Object { ConvertFrom-CodexLogLine -Line $_ } |
