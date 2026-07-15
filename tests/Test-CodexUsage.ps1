@@ -15,6 +15,27 @@ function Assert-Equal {
     }
 }
 
+$meterXamlPath = Join-Path $PSScriptRoot '..\src\CodexMeter.xaml'
+Assert-Equal $true (Test-Path -LiteralPath $meterXamlPath -PathType Leaf) 'Meter XAML exists'
+[xml]$meterXaml = Get-Content -LiteralPath $meterXamlPath -Raw -Encoding UTF8
+$xamlNamespace = New-Object Xml.XmlNamespaceManager($meterXaml.NameTable)
+$xamlNamespace.AddNamespace('x', 'http://schemas.microsoft.com/winfx/2006/xaml')
+
+foreach ($controlName in @('WeeklyBar', 'WeeklyValue', 'ResetValue', 'ContextBar', 'ContextValue', 'FreshnessValue', 'ZoomValue')) {
+    $namedControl = $meterXaml.SelectSingleNode("//*[@x:Name='$controlName']", $xamlNamespace)
+    Assert-Equal $true ($null -ne $namedControl) "XAML contains $controlName"
+}
+
+Assert-Equal 'True' $meterXaml.Window.Topmost 'Meter stays topmost'
+Assert-Equal 'False' $meterXaml.Window.ShowInTaskbar 'Meter is hidden from the taskbar'
+Assert-Equal 'None' $meterXaml.Window.WindowStyle 'Meter has no window chrome'
+
+$meterScriptPath = Join-Path $PSScriptRoot '..\src\CodexMeter.ps1'
+Assert-Equal $true (Test-Path -LiteralPath $meterScriptPath -PathType Leaf) 'Meter controller exists'
+$parseErrors = $null
+$null = [Management.Automation.Language.Parser]::ParseFile($meterScriptPath, [ref]$null, [ref]$parseErrors)
+Assert-Equal 0 $parseErrors.Count 'Meter controller has valid PowerShell syntax'
+
 $events = @(
     Get-Content (Join-Path $PSScriptRoot 'fixtures\token-count.jsonl') |
         ForEach-Object { ConvertFrom-CodexLogLine -Line $_ } |
